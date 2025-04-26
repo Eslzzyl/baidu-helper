@@ -1,83 +1,43 @@
 <template>
-  <v-card class="pa-4 h-100" flat>
-    <v-card-title class="text-center pb-4">提示词管理</v-card-title>
-    
-    <v-card-text>
-      <v-row>
-        <!-- 视觉模型提示词 -->
-        <v-col cols="12" md="6">
-          <div class="text-h6 mb-4 text-center">视觉模型</div>
-          <div class="mb-2 d-flex justify-space-between align-center">
-            <div class="text-subtitle-1">系统提示词</div>
-            <v-btn
-              icon
-              @click="copyToClipboard(visionSystemPrompt)"
-              title="复制到剪贴板"
-            >
-              <v-icon>mdi-content-copy</v-icon>
-            </v-btn>
-          </div>
-          
-          <v-textarea
-            v-model="visionSystemPrompt"
-            outlined
-            rows="8"
-            auto-grow
-            hide-details
-            placeholder="输入视觉模型的系统提示词"
-            class="scrollable-textarea"
-          ></v-textarea>
-          
-          <v-btn
-            color="primary"
-            block
-            class="mt-4"
-            @click="saveVisionPrompt"
-          >
-            保存视觉模型提示词
-          </v-btn>
-        </v-col>
-        
-        <!-- 文本模型提示词 -->
-        <v-col cols="12" md="6">
-          <div class="text-h6 mb-4 text-center">文本模型</div>
-          <div class="mb-2 d-flex justify-space-between align-center">
-            <div class="text-subtitle-1">系统提示词</div>
-            <v-btn
-              icon
-              @click="copyToClipboard(textSystemPrompt)"
-              title="复制到剪贴板"
-            >
-              <v-icon>mdi-content-copy</v-icon>
-            </v-btn>
-          </div>
-          
-          <v-textarea
-            v-model="textSystemPrompt"
-            outlined
-            rows="8"
-            auto-grow
-            hide-details
-            placeholder="输入文本模型的系统提示词"
-            class="scrollable-textarea"
-          ></v-textarea>
-          
-          <v-btn
-            color="primary"
-            block
-            class="mt-4"
-            @click="saveTextPrompt"
-          >
-            保存文本模型提示词
-          </v-btn>
-        </v-col>
-      </v-row>
-      
-      <v-snackbar v-model="snackbar" :timeout="2000" :color="snackbarColor">
-        {{ snackbarText }}
-      </v-snackbar>
-    </v-card-text>
-  </v-card>
+  <v-row class="fill-height">
+    <!-- 视觉模型提示词 -->
+    <v-col class="d-flex flex-column">
+      <div class="text-h6 mb-4 text-center">视觉模型</div>
+      <div class="mb-2 d-flex justify-space-between align-center">
+        <div class="text-subtitle-1">系统提示词</div>
+        <v-btn icon @click="copyToClipboard(visionSystemPrompt)" title="复制到剪贴板">
+          <v-icon>mdi-content-copy</v-icon>
+        </v-btn>
+      </div>
+      <v-textarea v-model="visionSystemPrompt" outlined rows="8" auto-grow hide-details placeholder="输入视觉模型的系统提示词"
+        class="scrollable-textarea flex-grow-1"></v-textarea>
+      <v-btn color="primary" block class="mt-4" @click="saveVisionPrompt">
+        保存视觉模型提示词
+      </v-btn>
+    </v-col>
+
+    <!-- 文本模型提示词 -->
+    <v-col class="d-flex flex-column">
+      <div class="text-h6 mb-4 text-center">文本模型</div>
+      <div class="mb-2 d-flex justify-space-between align-center">
+        <div class="text-subtitle-1">系统提示词</div>
+        <v-btn icon @click="copyToClipboard(textSystemPrompt)" title="复制到剪贴板">
+          <v-icon>mdi-content-copy</v-icon>
+        </v-btn>
+      </div>
+
+      <v-textarea v-model="textSystemPrompt" outlined rows="8" auto-grow hide-details placeholder="输入文本模型的系统提示词"
+        class="scrollable-textarea flex-grow-1"></v-textarea>
+
+      <v-btn color="primary" block class="mt-4" @click="saveTextPrompt">
+        保存文本模型提示词
+      </v-btn>
+    </v-col>
+  </v-row>
+
+  <v-snackbar v-model="snackbar" :timeout="2000" :color="snackbarColor">
+    {{ snackbarText }}
+  </v-snackbar>
 </template>
 
 <script setup>
@@ -94,7 +54,7 @@ const snackbarColor = ref('success');
 onMounted(() => {
   const textConfig = openAIService.getTextConfig();
   const visionConfig = openAIService.getVisionConfig();
-  
+
   textSystemPrompt.value = textConfig.systemPrompt || '';
   visionSystemPrompt.value = visionConfig.systemPrompt || '';
 });
@@ -148,5 +108,10 @@ const showSnackbar = (text, color = 'success') => {
 
 .scrollable-textarea {
   max-height: 300px;
+  overflow-y: auto;
+}
+
+.fill-height {
+  height: 100vh;
 }
 </style>

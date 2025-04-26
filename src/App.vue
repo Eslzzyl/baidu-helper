@@ -18,26 +18,38 @@
           </v-col>
         </v-row>
 
-        <v-row>
-          <v-col cols="12">
-            <v-bottom-navigation v-model="activeTab" color="primary" grow>
-              <v-btn value="main-page">
+        <!-- 边缘悬浮导航按钮 -->
+        <div class="floating-nav">
+          <v-tooltip left>
+            <template v-slot:activator="{ props }">
+              <v-btn v-bind="props" icon color="primary" class="mb-2" @click="activeTab = 'main-page'"
+                :outlined="activeTab !== 'main-page'">
                 <v-icon>mdi-view-grid</v-icon>
-                <span>图文识别与解答</span>
               </v-btn>
+            </template>
+            <span>图文识别与解答</span>
+          </v-tooltip>
 
-              <v-btn value="api-settings">
+          <v-tooltip left>
+            <template v-slot:activator="{ props }">
+              <v-btn v-bind="props" icon color="primary" class="mb-2" @click="activeTab = 'api-settings'"
+                :outlined="activeTab !== 'api-settings'">
                 <v-icon>mdi-api</v-icon>
-                <span>API设置</span>
               </v-btn>
+            </template>
+            <span>API设置</span>
+          </v-tooltip>
 
-              <v-btn value="prompt-manager">
+          <v-tooltip left>
+            <template v-slot:activator="{ props }">
+              <v-btn v-bind="props" icon color="primary" @click="activeTab = 'prompt-manager'"
+                :outlined="activeTab !== 'prompt-manager'">
                 <v-icon>mdi-format-text</v-icon>
-                <span>提示词</span>
               </v-btn>
-            </v-bottom-navigation>
-          </v-col>
-        </v-row>
+            </template>
+            <span>提示词</span>
+          </v-tooltip>
+        </div>
       </v-container>
     </v-main>
   </v-app>
@@ -51,3 +63,20 @@ import MainPage from '@/components/MainPage.vue';
 
 const activeTab = ref('main-page');
 </script>
+
+<style scoped>
+.floating-nav {
+  position: fixed;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  z-index: 10;
+}
+
+.floating-nav .v-btn {
+  margin-bottom: 10px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+</style>
