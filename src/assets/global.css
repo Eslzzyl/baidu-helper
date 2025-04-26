@@ -1,0 +1,16 @@
+html, body {
+  overflow-y: auto !important;
+}
+
+.v-application {
+  overflow-y: auto !important;
+  max-height: 100vh;
+}
+
+.v-main {
+  overflow-y: auto !important;
+}
+
+.v-main__wrap {
+  overflow-y: auto !important;
+}
