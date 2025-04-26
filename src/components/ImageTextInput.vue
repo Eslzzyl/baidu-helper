@@ -6,23 +6,27 @@
         <!-- 多图片上传和展示区域 -->
         <div class="mt-3 mb-2">
             <div class="d-flex align-center mb-2">
-                <span class="text-subtitle-2 mr-2">粘贴图片</span>
-                <v-btn icon small color="primary" class="ml-1" @click="clearAllImages" :disabled="!localImages.length"
-                    title="清除所有图片">
-                    <v-icon>mdi-image-off</v-icon>
-                </v-btn>
                 <v-spacer></v-spacer>
                 <span class="caption" v-if="localImages.length">已添加 {{ localImages.length }} 张图片</span>
             </div>
 
-            <v-card outlined class="image-paste-area pa-3 mb-2 text-center" @paste.stop="handlePasteOnArea">
+            <v-card outlined class="image-paste-area pa-3 mb-2 text-center position-relative"
+                @paste.stop="handlePasteOnArea">
+                <v-icon small class="clear-all-btn" @click.stop="clearAllImages" :disabled="!localImages.length"
+                    title="清除所有图片" v-if="localImages.length">
+                    mdi-close-circle
+                </v-icon>
+
                 <v-icon v-if="!localImages.length" size="24" class="mb-1">mdi-image-multiple</v-icon>
                 <div v-if="!localImages.length">在此处粘贴图片</div>
 
                 <div v-if="localImages.length" class="image-preview-container">
                     <div v-for="(img, index) in localImages" :key="index" class="image-preview-item">
-                        <v-img :src="img.preview" height="auto" width="200" contain class="rounded ma-1 preview-image"
-                            :aspect-ratio="1" @click="previewImage(img.preview)"></v-img>
+                        <v-img :src="img.preview" height="80" :width="calculateImageWidth(img)" contain
+                            class="rounded ma-1 preview-image" @click="previewImage(img.preview)"></v-img>
+                        <v-icon small class="image-delete-icon" @click.stop="removeImage(index)" title="删除图片">
+                            mdi-close-circle
+                        </v-icon>
                     </div>
                 </div>
             </v-card>
@@ -76,6 +80,7 @@ const localImages = ref([...props.images]);
 const textareaRef = ref(null);
 const showImagePreview = ref(false);
 const previewImageSrc = ref('');
+const imageAspectRatios = ref({}); // 存储图片宽高比
 
 // 确保组件内部状态与外部传入的值保持同步
 watch(() => props.textInput, (newVal) => {
@@ -129,7 +134,16 @@ const handlePasteOnArea = (event) => {
     }
 };
 
-// 修改图片添加方法，使用深拷贝避免引用问题
+// 添加计算图片宽度的方法
+const calculateImageWidth = (img) => {
+    if (imageAspectRatios.value[img.preview]) {
+        // 保持图片原始宽高比，固定高度为80px
+        return 80 * imageAspectRatios.value[img.preview];
+    }
+    return 'auto'; // 在比例还未计算出来时使用自动宽度
+};
+
+// 修改图片添加方法，增加宽高比计算
 const addMultipleImages = (files) => {
     const newImages = [];
 
@@ -143,6 +157,17 @@ const addMultipleImages = (files) => {
                     preview: base64Data,
                     base64: base64Data.split(',')[1]
                 });
+
+                // 计算并存储图片宽高比
+                const img = new Image();
+                img.onload = () => {
+                    const aspectRatio = img.width / img.height;
+                    imageAspectRatios.value = {
+                        ...imageAspectRatios.value,
+                        [base64Data]: aspectRatio
+                    };
+                };
+                img.src = base64Data;
 
                 // 当所有图片都处理完后，一次性更新 localImages
                 if (newImages.length === files.length) {
@@ -159,6 +184,13 @@ const addMultipleImages = (files) => {
 
 const clearAllImages = () => {
     localImages.value = [];
+};
+
+// 添加删除单个图片的方法
+const removeImage = (index) => {
+    const updatedImages = [...localImages.value];
+    updatedImages.splice(index, 1);
+    localImages.value = updatedImages;
 };
 
 // 新增图片预览方法
@@ -214,6 +246,14 @@ onMounted(() => {
     flex-direction: column;
     justify-content: center;
     align-items: center;
+    position: relative;
+}
+
+.clear-all-btn {
+    position: absolute;
+    top: 5px;
+    right: 5px;
+    z-index: 2;
 }
 
 .image-preview-container {
@@ -232,6 +272,28 @@ onMounted(() => {
     justify-content: center;
     align-items: center;
     cursor: pointer;
+    position: relative;
+    overflow: visible;
+    /* 确保图标可以溢出显示 */
+}
+
+.image-delete-icon {
+    position: absolute;
+    top: -5px;
+    right: -5px;
+    z-index: 1;
+    color: #f44336;
+    opacity: 0.8;
+    font-size: 16px;
+    background-color: #ffffff;
+    border-radius: 50%;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.image-delete-icon:hover {
+    opacity: 1;
+    transform: scale(1.1);
 }
 
 .preview-image {
@@ -243,5 +305,9 @@ onMounted(() => {
     transform: scale(1.05);
     transition: transform 0.2s;
     box-shadow: 0 0 5px rgba(0, 0, 0, 0.2);
+}
+
+.position-relative {
+    position: relative;
 }
 </style>
