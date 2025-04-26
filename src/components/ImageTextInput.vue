@@ -6,12 +6,7 @@
         <!-- 多图片上传和展示区域 -->
         <div class="mt-3 mb-2">
             <div class="d-flex align-center mb-2">
-                <span class="text-subtitle-2 mr-2">添加图片</span>
-                <v-btn icon small color="primary" @click="triggerImageUpload" title="添加图片">
-                    <v-icon>mdi-image-plus</v-icon>
-                </v-btn>
-                <input type="file" ref="imageInput" accept="image/*" multiple style="display: none"
-                    @change="handleImageInputChange" />
+                <span class="text-subtitle-2 mr-2">粘贴图片</span>
                 <v-btn icon small color="primary" class="ml-1" @click="clearAllImages" :disabled="!localImages.length"
                     title="清除所有图片">
                     <v-icon>mdi-image-off</v-icon>
@@ -20,25 +15,31 @@
                 <span class="caption" v-if="localImages.length">已添加 {{ localImages.length }} 张图片</span>
             </div>
 
-            <v-card outlined class="image-drop-area pa-3 mb-2 text-center"
-                :class="{ 'paste-active': isImageDropActive }" @dragover.prevent="isImageDropActive = true"
-                @dragleave.prevent="isImageDropActive = false" @drop.prevent="handleMultiImageDrop"
-                @paste.stop="handlePasteOnDropArea" @click="triggerImageUpload" tabindex="0">
+            <v-card outlined class="image-paste-area pa-3 mb-2 text-center" @paste.stop="handlePasteOnArea">
                 <v-icon v-if="!localImages.length" size="24" class="mb-1">mdi-image-multiple</v-icon>
-                <div v-if="!localImages.length">点击添加或拖放图片到此处</div>
+                <div v-if="!localImages.length">在此处粘贴图片</div>
 
                 <div v-if="localImages.length" class="image-preview-container">
                     <div v-for="(img, index) in localImages" :key="index" class="image-preview-item">
-                        <v-img :src="img.preview" height="100" width="100" contain class="rounded ma-1 preview-image"
-                            :aspect-ratio="1"></v-img>
-                        <v-btn icon x-small color="error" class="image-delete-btn" @click.stop="removeImage(index)"
-                            title="删除图片">
-                            <v-icon x-small>mdi-close</v-icon>
-                        </v-btn>
+                        <v-img :src="img.preview" height="auto" width="200" contain class="rounded ma-1 preview-image"
+                            :aspect-ratio="1" @click="previewImage(img.preview)"></v-img>
                     </div>
                 </div>
             </v-card>
         </div>
+
+        <!-- 图片预览对话框 -->
+        <v-dialog v-model="showImagePreview" max-width="90vw">
+            <v-card>
+                <v-card-text class="pa-0">
+                    <v-img :src="previewImageSrc" max-height="90vh" contain></v-img>
+                </v-card-text>
+                <v-card-actions>
+                    <v-spacer></v-spacer>
+                    <v-btn color="primary" text @click="showImagePreview = false">关闭</v-btn>
+                </v-card-actions>
+            </v-card>
+        </v-dialog>
     </div>
 </template>
 
@@ -72,9 +73,9 @@ const emit = defineEmits(['update:textInput', 'update:images', 'paste-image']);
 
 const localTextInput = ref(props.textInput);
 const localImages = ref([...props.images]);
-const isImageDropActive = ref(false);
-const imageInput = ref(null);
 const textareaRef = ref(null);
+const showImagePreview = ref(false);
+const previewImageSrc = ref('');
 
 // 确保组件内部状态与外部传入的值保持同步
 watch(() => props.textInput, (newVal) => {
@@ -107,35 +108,7 @@ const updateText = () => {
     emit('update:textInput', localTextInput.value);
 };
 
-const triggerImageUpload = () => {
-    imageInput.value.click();
-};
-
-const handleImageInputChange = (event) => {
-    if (!event.target.files || event.target.files.length === 0) return;
-
-    const files = Array.from(event.target.files);
-    addMultipleImages(files);
-
-    // 重置input，确保可以重复选择相同的文件
-    event.target.value = '';
-};
-
-const handleMultiImageDrop = (event) => {
-    isImageDropActive.value = false;
-
-    if (!event.dataTransfer.files || event.dataTransfer.files.length === 0) return;
-
-    const files = Array.from(event.dataTransfer.files).filter(file =>
-        file.type.startsWith('image/')
-    );
-
-    if (files.length > 0) {
-        addMultipleImages(files);
-    }
-};
-
-const handlePasteOnDropArea = (event) => {
+const handlePasteOnArea = (event) => {
     const items = event.clipboardData?.items;
     if (!items) return;
 
@@ -184,15 +157,14 @@ const addMultipleImages = (files) => {
     }
 };
 
-// 为确保一致性，也修改 removeImage 和 clearAllImages 方法
-const removeImage = (index) => {
-    const updatedImages = [...localImages.value];
-    updatedImages.splice(index, 1);
-    localImages.value = updatedImages;
-};
-
 const clearAllImages = () => {
     localImages.value = [];
+};
+
+// 新增图片预览方法
+const previewImage = (imageSrc) => {
+    previewImageSrc.value = imageSrc;
+    showImagePreview.value = true;
 };
 
 onMounted(() => {
@@ -234,9 +206,8 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.image-drop-area {
+.image-paste-area {
     min-height: 60px;
-    cursor: pointer;
     border: 2px dashed #ccc;
     transition: all 0.3s;
     display: flex;
@@ -245,39 +216,32 @@ onMounted(() => {
     align-items: center;
 }
 
-.paste-active {
-    border-color: #1976d2;
-    background-color: rgba(25, 118, 210, 0.05);
-}
-
 .image-preview-container {
     display: flex;
     flex-wrap: wrap;
     justify-content: flex-start;
     align-items: center;
     width: 100%;
+    overflow-x: auto;
 }
 
 .image-preview-item {
-    position: relative;
-    margin: 8px;
-    width: 100px;
-    height: 100px;
+    margin: 4px;
+    height: 80px;
     display: flex;
     justify-content: center;
     align-items: center;
+    cursor: pointer;
 }
 
 .preview-image {
     object-fit: contain;
-    width: 100%;
     height: 100%;
 }
 
-.image-delete-btn {
-    position: absolute;
-    top: -8px;
-    right: -8px;
-    background-color: rgba(255, 255, 255, 0.8) !important;
+.preview-image:hover {
+    transform: scale(1.05);
+    transition: transform 0.2s;
+    box-shadow: 0 0 5px rgba(0, 0, 0, 0.2);
 }
 </style>
