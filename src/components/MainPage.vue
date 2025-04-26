@@ -99,7 +99,11 @@ const recognizeText = async () => {
     const base64Image = ocrImages.value[0].base64;
 
     try {
-      recognizedText.value = await openAIService.extractTextFromImage(base64Image, userNotes.value);
+      // 使用优化后的服务方法
+      recognizedText.value = await openAIService.createChatCompletion({
+        imageBase64Array: [base64Image],
+        userNotes: userNotes.value
+      });
     } catch (error) {
       console.error('Error recognizing text:', error);
       showSnackbar('识别失败: ' + error.message, 'error');
@@ -151,14 +155,13 @@ const generateAnswer = async () => {
   loadingText.value = true;
 
   try {
-    // 如果有图片和文本，使用多模态API
-    if (multipleImages.value.length > 0) {
-      const imageDataList = multipleImages.value.map(img => img.base64);
-      generatedAnswer.value = await openAIService.generateTextWithImages(userInput.value, imageDataList);
-    } else {
-      // 纯文本请求
-      generatedAnswer.value = await openAIService.generateTextAnswer(userInput.value);
-    }
+    // 直接使用统一的接口
+    const imageDataList = multipleImages.value.map(img => img.base64);
+    generatedAnswer.value = await openAIService.createChatCompletion({
+      prompt: userInput.value,
+      imageBase64Array: imageDataList,
+      useTextModel: imageDataList.length === 0 // 根据是否有图片决定使用哪个模型
+    });
   } catch (error) {
     console.error('Error generating answer:', error);
     showSnackbar('生成解答失败: ' + error.message, 'error');

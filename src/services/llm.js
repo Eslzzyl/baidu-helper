@@ -70,117 +70,99 @@ class OpenAIService {
         return savedConfig ? JSON.parse(savedConfig) : defaultConfig;
     }
 
-    async generateTextAnswer(prompt) {
-        const config = this.getTextConfig();
+    /**
+     * 通用的聊天完成函数，可处理纯文本、单图片或多图片情况
+     * @param {Object} options - 配置选项
+     * @param {string} options.prompt - 文本提示
+     * @param {string[]} options.imageBase64Array - 图片Base64数组
+     * @param {string} options.userNotes - 用户注释（仅用于单图片模式）
+     * @param {boolean} options.useTextModel - 是否使用文本模型而非视觉模型
+     * @returns {Promise<string>} - 返回AI回复的内容
+     */
+    async createChatCompletion({ prompt = '', imageBase64Array = [], userNotes = '', useTextModel = false }) {
+        // 确定使用哪个客户端和配置
+        const isVisionRequest = imageBase64Array.length > 0;
+        const client = useTextModel ? this.textClient : (isVisionRequest ? this.visionClient : this.textClient);
+        const config = useTextModel ? this.getTextConfig() : (isVisionRequest ? this.getVisionConfig() : this.getTextConfig());
 
         try {
-            const response = await this.textClient.chat.completions.create({
+            // 准备消息格式
+            const messages = [
+                {
+                    role: 'system',
+                    content: config.systemPrompt
+                }
+            ];
+
+            // 根据不同场景构建用户消息内容
+            if (isVisionRequest) {
+                // 视觉请求（单图片或多图片）
+                const userContent = [];
+
+                // 添加文本内容（如果有）
+                if ((prompt || userNotes) && (prompt + userNotes).trim()) {
+                    userContent.push({
+                        type: 'text',
+                        text: userNotes || prompt
+                    });
+                }
+
+                // 添加图片
+                for (const imageBase64 of imageBase64Array) {
+                    userContent.push({
+                        type: 'image_url',
+                        image_url: {
+                            url: `data:image/jpeg;base64,${imageBase64}`
+                        }
+                    });
+                }
+
+                messages.push({
+                    role: 'user',
+                    content: userContent
+                });
+            } else {
+                // 纯文本请求
+                messages.push({
+                    role: 'user',
+                    content: prompt
+                });
+            }
+
+            // 发送请求
+            const response = await client.chat.completions.create({
                 model: config.model,
                 temperature: parseFloat(config.temperature),
-                messages: [
-                    {
-                        role: 'system',
-                        content: config.systemPrompt
-                    },
-                    {
-                        role: 'user',
-                        content: prompt
-                    }
-                ]
+                messages: messages
             });
 
             return response.choices[0].message.content;
         } catch (error) {
-            console.error('Error generating text answer:', error);
+            console.error('Error in chat completion:', error);
             throw error;
         }
+    }
+
+    // 以下为保持向后兼容的包装函数
+    async generateTextAnswer(prompt) {
+        return this.createChatCompletion({
+            prompt,
+            useTextModel: true
+        });
     }
 
     async extractTextFromImage(imageBase64, userNotes = '') {
-        const config = this.getVisionConfig();
-
-        try {
-            const messages = [
-                {
-                    role: 'system',
-                    content: config.systemPrompt
-                },
-                {
-                    role: 'user',
-                    content: [
-                        {
-                            type: 'text',
-                            text: userNotes
-                                ? `${userNotes}`
-                                : ''
-                        },
-                        {
-                            type: 'image_url',
-                            image_url: {
-                                url: `data:image/jpeg;base64,${imageBase64}`
-                            }
-                        }
-                    ]
-                }
-            ];
-
-            const response = await this.visionClient.chat.completions.create({
-                model: config.model,
-                temperature: parseFloat(config.temperature),
-                messages: messages
-            });
-
-            return response.choices[0].message.content;
-        } catch (error) {
-            console.error('Error extracting text from image:', error);
-            throw error;
-        }
+        return this.createChatCompletion({
+            imageBase64Array: [imageBase64],
+            userNotes
+        });
     }
 
     async generateTextWithImages(prompt, imageBase64Array) {
-        const config = this.getVisionConfig();
-        
-        try {
-            const messages = [
-                {
-                    role: 'system',
-                    content: config.systemPrompt
-                },
-                {
-                    role: 'user',
-                    content: []
-                }
-            ];
-            
-            // 添加用户文本（如果有）
-            if (prompt && prompt.trim()) {
-                messages[1].content.push({
-                    type: 'text',
-                    text: prompt
-                });
-            }
-            
-            // 添加所有图片
-            for (const imageBase64 of imageBase64Array) {
-                messages[1].content.push({
-                    type: 'image_url',
-                    image_url: {
-                        url: `data:image/jpeg;base64,${imageBase64}`
-                    }
-                });
-            }
-            
-            const response = await this.visionClient.chat.completions.create({
-                model: config.model,
-                temperature: parseFloat(config.temperature),
-                messages: messages
-            });
-
-            return response.choices[0].message.content;
-        } catch (error) {
-            console.error('Error generating answer with images:', error);
-            throw error;
-        }
+        return this.createChatCompletion({
+            prompt,
+            imageBase64Array
+        });
     }
 }
 
