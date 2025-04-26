@@ -39,15 +39,13 @@
       <div class="text-h6 mb-3 text-center">生成解答</div>
 
       <ImageTextInput v-model:textInput="userInput" v-model:images="multipleImages" label="请输入问题或文本内容"
-        placeholder="输入你的问题或粘贴文本内容" :rows="4" @paste-image="handleAnswerImagePaste" />
+        placeholder="输入你的问题或粘贴文本内容" :rows="4" @paste-image="handleAnswerImagePaste">
+      </ImageTextInput>
 
-      <div class="d-flex justify-space-between align-center mt-3">
+      <div class="text-center mt-3">
         <v-btn color="primary" @click="generateAnswer" :loading="loadingText"
           :disabled="!userInput && !multipleImages.length">
           生成解答
-        </v-btn>
-        <v-btn icon @click="copyToClipboard(userInput)" :disabled="!userInput" title="复制输入内容">
-          <v-icon>mdi-content-copy</v-icon>
         </v-btn>
       </div>
 

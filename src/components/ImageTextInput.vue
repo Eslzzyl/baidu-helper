@@ -1,6 +1,6 @@
 <template>
     <div>
-        <v-textarea v-model="localTextInput" :label="label" :placeholder="placeholder" :rows="rows" auto-grow
+        <v-textarea clearable v-model="localTextInput" :label="label" :placeholder="placeholder" :rows="rows" auto-grow
             hide-details outlined @input="updateText" ref="textareaRef"></v-textarea>
 
         <!-- 多图片上传和展示区域 -->
