@@ -1,5 +1,27 @@
 <template>
   <v-app>
+    <!-- 顶部导航栏 -->
+    <v-app-bar app color="white" elevation="1" density="compact">
+      <v-container class="d-flex align-center justify-center py-1">
+        <v-btn-toggle v-model="activeTab" color="primary" mandatory density="comfortable">
+          <v-btn value="main-page" class="text-body-2">
+            <v-icon size="small">mdi-view-grid</v-icon>
+            <span class="ml-1">图文识别与解答</span>
+          </v-btn>
+
+          <v-btn value="api-settings" class="text-body-2">
+            <v-icon size="small">mdi-api</v-icon>
+            <span class="ml-1">API设置</span>
+          </v-btn>
+
+          <v-btn value="prompt-manager" class="text-body-2">
+            <v-icon size="small">mdi-format-text</v-icon>
+            <span class="ml-1">提示词</span>
+          </v-btn>
+        </v-btn-toggle>
+      </v-container>
+    </v-app-bar>
+
     <v-main>
       <v-container fluid>
         <v-row>
@@ -17,39 +39,6 @@
             </v-sheet>
           </v-col>
         </v-row>
-
-        <!-- 边缘悬浮导航按钮 -->
-        <div class="floating-nav">
-          <v-tooltip left>
-            <template v-slot:activator="{ props }">
-              <v-btn v-bind="props" icon color="primary" class="mb-2" @click="activeTab = 'main-page'"
-                :outlined="activeTab !== 'main-page'">
-                <v-icon>mdi-view-grid</v-icon>
-              </v-btn>
-            </template>
-            <span>图文识别与解答</span>
-          </v-tooltip>
-
-          <v-tooltip left>
-            <template v-slot:activator="{ props }">
-              <v-btn v-bind="props" icon color="primary" class="mb-2" @click="activeTab = 'api-settings'"
-                :outlined="activeTab !== 'api-settings'">
-                <v-icon>mdi-api</v-icon>
-              </v-btn>
-            </template>
-            <span>API设置</span>
-          </v-tooltip>
-
-          <v-tooltip left>
-            <template v-slot:activator="{ props }">
-              <v-btn v-bind="props" icon color="primary" @click="activeTab = 'prompt-manager'"
-                :outlined="activeTab !== 'prompt-manager'">
-                <v-icon>mdi-format-text</v-icon>
-              </v-btn>
-            </template>
-            <span>提示词</span>
-          </v-tooltip>
-        </div>
       </v-container>
     </v-main>
   </v-app>
@@ -65,18 +54,12 @@ const activeTab = ref('main-page');
 </script>
 
 <style scoped>
-.floating-nav {
-  position: fixed;
-  right: 10px;
-  top: 50%;
-  transform: translateY(-50%);
-  display: flex;
-  flex-direction: column;
-  z-index: 10;
+.v-btn-toggle {
+  border-radius: 4px;
 }
 
-.floating-nav .v-btn {
-  margin-bottom: 10px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+.v-btn-toggle .v-btn {
+  min-width: 110px;
+  height: 36px;
 }
 </style>

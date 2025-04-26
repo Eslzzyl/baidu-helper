@@ -77,9 +77,11 @@ class OpenAIService {
      * @param {string[]} options.imageBase64Array - 图片Base64数组
      * @param {string} options.userNotes - 用户注释（仅用于单图片模式）
      * @param {boolean} options.useTextModel - 是否使用文本模型而非视觉模型
+     * @param {boolean} options.stream - 是否使用流式输出
+     * @param {function} options.onStream - 流式输出回调函数
      * @returns {Promise<string>} - 返回AI回复的内容
      */
-    async createChatCompletion({ prompt = '', imageBase64Array = [], userNotes = '', useTextModel = false }) {
+    async createChatCompletion({ prompt = '', imageBase64Array = [], userNotes = '', useTextModel = false, stream = false, onStream = null }) {
         // 确定使用哪个客户端和配置
         const isVisionRequest = imageBase64Array.length > 0;
         const client = useTextModel ? this.textClient : (isVisionRequest ? this.visionClient : this.textClient);
@@ -130,39 +132,38 @@ class OpenAIService {
             }
 
             // 发送请求
-            const response = await client.chat.completions.create({
+            const requestOptions = {
                 model: config.model,
                 temperature: parseFloat(config.temperature),
-                messages: messages
-            });
+                messages: messages,
+                stream: stream
+            };
 
-            return response.choices[0].message.content;
+            // 如果是流式输出
+            if (stream && onStream) {
+                let fullResponse = '';
+                const stream = await client.chat.completions.create({
+                    ...requestOptions,
+                    stream: true,
+                });
+
+                for await (const chunk of stream) {
+                    const content = chunk.choices[0]?.delta?.content || '';
+                    if (content) {
+                        fullResponse += content;
+                        onStream(content, fullResponse);
+                    }
+                }
+
+                return fullResponse;
+            } else {
+                const response = await client.chat.completions.create(requestOptions);
+                return response.choices[0].message.content;
+            }
         } catch (error) {
             console.error('Error in chat completion:', error);
             throw error;
         }
-    }
-
-    // 以下为保持向后兼容的包装函数
-    async generateTextAnswer(prompt) {
-        return this.createChatCompletion({
-            prompt,
-            useTextModel: true
-        });
-    }
-
-    async extractTextFromImage(imageBase64, userNotes = '') {
-        return this.createChatCompletion({
-            imageBase64Array: [imageBase64],
-            userNotes
-        });
-    }
-
-    async generateTextWithImages(prompt, imageBase64Array) {
-        return this.createChatCompletion({
-            prompt,
-            imageBase64Array
-        });
     }
 }
 
