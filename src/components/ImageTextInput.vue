@@ -29,7 +29,8 @@
 
                 <div v-if="localImages.length" class="image-preview-container">
                     <div v-for="(img, index) in localImages" :key="index" class="image-preview-item">
-                        <v-img :src="img.preview" max-height="80" max-width="80" contain class="rounded ma-1"></v-img>
+                        <v-img :src="img.preview" height="100" width="100" contain class="rounded ma-1 preview-image"
+                            :aspect-ratio="1"></v-img>
                         <v-btn icon x-small color="error" class="image-delete-btn" @click.stop="removeImage(index)"
                             title="删除图片">
                             <v-icon x-small>mdi-close</v-icon>
@@ -42,7 +43,7 @@
 </template>
 
 <script setup>
-import { ref, watch, defineProps, defineEmits, onMounted } from 'vue';
+import { ref, watch, defineProps, defineEmits, onMounted, nextTick } from 'vue';
 
 const props = defineProps({
     textInput: {
@@ -89,8 +90,16 @@ watch(localTextInput, (newVal) => {
     emit('update:textInput', newVal);
 });
 
+// 修改这个 watch 函数，使用防递归标记
+let isUpdatingImages = false;
 watch(localImages, (newVal) => {
-    emit('update:images', [...newVal]);
+    if (!isUpdatingImages) {
+        isUpdatingImages = true;
+        emit('update:images', JSON.parse(JSON.stringify(newVal)));
+        nextTick(() => {
+            isUpdatingImages = false;
+        });
+    }
 }, { deep: true });
 
 // 方法
@@ -147,24 +156,39 @@ const handlePasteOnDropArea = (event) => {
     }
 };
 
+// 修改图片添加方法，使用深拷贝避免引用问题
 const addMultipleImages = (files) => {
+    const newImages = [];
+
     for (const file of files) {
         if (file.type.startsWith('image/')) {
             const reader = new FileReader();
             reader.onload = (e) => {
-                localImages.value.push({
+                const base64Data = e.target.result;
+                newImages.push({
                     file: file,
-                    preview: e.target.result,
-                    base64: e.target.result.split(',')[1]
+                    preview: base64Data,
+                    base64: base64Data.split(',')[1]
                 });
+
+                // 当所有图片都处理完后，一次性更新 localImages
+                if (newImages.length === files.length) {
+                    nextTick(() => {
+                        const updatedImages = [...localImages.value, ...newImages];
+                        localImages.value = updatedImages;
+                    });
+                }
             };
             reader.readAsDataURL(file);
         }
     }
 };
 
+// 为确保一致性，也修改 removeImage 和 clearAllImages 方法
 const removeImage = (index) => {
-    localImages.value.splice(index, 1);
+    const updatedImages = [...localImages.value];
+    updatedImages.splice(index, 1);
+    localImages.value = updatedImages;
 };
 
 const clearAllImages = () => {
@@ -178,17 +202,30 @@ onMounted(() => {
             const items = event.clipboardData?.items;
             if (!items) return;
 
+            let hasImage = false;
+            const imageFiles = [];
+
             // 检查是否包含图片
             for (let i = 0; i < items.length; i++) {
                 if (items[i].type.indexOf('image') !== -1) {
                     const blob = items[i].getAsFile();
                     if (blob) {
-                        // 防止图片被直接粘贴到文本框中
-                        event.preventDefault();
-                        // 通知父组件处理图片粘贴事件
-                        emit('paste-image', blob);
-                        break;
+                        hasImage = true;
+                        imageFiles.push(blob);
                     }
+                }
+            }
+
+            if (hasImage) {
+                // 防止图片被直接粘贴到文本框中
+                event.preventDefault();
+
+                // 直接添加图片到本组件
+                addMultipleImages(imageFiles);
+
+                // 通知父组件处理图片粘贴事件，使用深拷贝
+                if (imageFiles.length > 0) {
+                    emit('paste-image', imageFiles[0]);
                 }
             }
         });
@@ -223,13 +260,24 @@ onMounted(() => {
 
 .image-preview-item {
     position: relative;
-    margin: 4px;
+    margin: 8px;
+    width: 100px;
+    height: 100px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.preview-image {
+    object-fit: contain;
+    width: 100%;
+    height: 100%;
 }
 
 .image-delete-btn {
     position: absolute;
-    top: -4px;
-    right: -4px;
+    top: -8px;
+    right: -8px;
     background-color: rgba(255, 255, 255, 0.8) !important;
 }
 </style>
