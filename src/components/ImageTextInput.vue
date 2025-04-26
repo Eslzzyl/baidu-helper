@@ -34,15 +34,7 @@
 
         <!-- 图片预览对话框 -->
         <v-dialog v-model="showImagePreview" max-width="90vw">
-            <v-card>
-                <v-card-text class="pa-0">
-                    <v-img :src="previewImageSrc" max-height="90vh" contain></v-img>
-                </v-card-text>
-                <v-card-actions>
-                    <v-spacer></v-spacer>
-                    <v-btn color="primary" text @click="showImagePreview = false">关闭</v-btn>
-                </v-card-actions>
-            </v-card>
+            <v-img :src="previewImageSrc" max-height="90vh" contain></v-img>
         </v-dialog>
     </div>
 </template>
