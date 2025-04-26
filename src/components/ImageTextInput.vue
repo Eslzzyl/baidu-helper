@@ -11,17 +11,19 @@
             </div>
 
             <v-card outlined class="image-paste-area pa-3 mb-2 text-center position-relative"
-                @paste.stop="handlePasteOnArea">
+                :class="{ 'drag-over': isDragOver }" @paste.stop="handlePasteOnArea" @dragover.prevent="handleDragOver"
+                @dragleave.prevent="handleDragLeave" @drop.prevent="handleDrop">
                 <v-icon small class="clear-all-btn" @click.stop="clearAllImages" :disabled="!localImages.length"
                     title="清除所有图片" v-if="localImages.length">
                     mdi-close-circle
                 </v-icon>
 
                 <v-icon v-if="!localImages.length" size="24" class="mb-1">mdi-image-multiple</v-icon>
-                <div v-if="!localImages.length">在此处粘贴图片</div>
+                <div v-if="!localImages.length">在此处粘贴或拖放图片</div>
 
                 <div v-if="localImages.length" class="image-preview-container">
-                    <div v-for="(img, index) in localImages" :key="index" class="image-preview-item">
+                    <div v-for="(img, index) in localImages" :key="index" class="image-preview-item" draggable="true"
+                        @dragstart="handleDragStart($event, img, index)">
                         <v-img :src="img.preview" height="80" :width="calculateImageWidth(img)" contain
                             class="rounded ma-1 preview-image" @click="previewImage(img.preview)"></v-img>
                         <v-icon small class="image-delete-icon" @click.stop="removeImage(index)" title="删除图片">
@@ -62,6 +64,11 @@ const props = defineProps({
     rows: {
         type: Number,
         default: 4
+    },
+    // 添加一个唯一ID用于区分不同实例
+    instanceId: {
+        type: String,
+        default: () => `image-input-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
     }
 });
 
@@ -73,6 +80,12 @@ const textareaRef = ref(null);
 const showImagePreview = ref(false);
 const previewImageSrc = ref('');
 const imageAspectRatios = ref({}); // 存储图片宽高比
+const isDragOver = ref(false); // 用于标记是否有元素正在拖放到此区域
+
+// 拖放操作相关数据
+const draggedImageIndex = ref(null);
+const draggedImage = ref(null);
+const dragSourceInstanceId = ref(null);
 
 // 确保组件内部状态与外部传入的值保持同步
 watch(() => props.textInput, (newVal) => {
@@ -174,6 +187,14 @@ const addMultipleImages = (files) => {
     }
 };
 
+// 添加处理从文件系统拖拽的图片方法
+const handleFileDrop = (files) => {
+    const imageFiles = Array.from(files).filter(file => file.type.startsWith('image/'));
+    if (imageFiles.length > 0) {
+        addMultipleImages(imageFiles);
+    }
+};
+
 const clearAllImages = () => {
     localImages.value = [];
 };
@@ -191,7 +212,96 @@ const previewImage = (imageSrc) => {
     showImagePreview.value = true;
 };
 
+// 拖放相关方法
+const handleDragOver = (event) => {
+    event.dataTransfer.dropEffect = 'copy';
+    isDragOver.value = true;
+};
+
+const handleDragLeave = () => {
+    isDragOver.value = false;
+};
+
+const handleDragStart = (event, img, index) => {
+    // 存储被拖动图片的信息
+    draggedImage.value = img;
+    draggedImageIndex.value = index;
+    dragSourceInstanceId.value = props.instanceId;
+
+    // 设置拖拽的数据
+    event.dataTransfer.setData('application/json', JSON.stringify({
+        instanceId: props.instanceId,
+        imageIndex: index,
+        imageData: img
+    }));
+
+    // 设置拖拽的效果
+    event.dataTransfer.effectAllowed = 'copyMove';
+
+    // 设置拖拽时的缩略图
+    if (img.preview) {
+        const dragImage = new Image();
+        dragImage.src = img.preview;
+        event.dataTransfer.setDragImage(dragImage, 20, 20);
+    }
+};
+
+const handleDrop = (event) => {
+    isDragOver.value = false;
+
+    // 尝试从拖放数据中获取图片
+    try {
+        // 1. 检查是否是从其他ImageTextInput组件拖拽的图片
+        const jsonData = event.dataTransfer.getData('application/json');
+
+        if (jsonData) {
+            const dragData = JSON.parse(jsonData);
+
+            // 如果是从另一个实例拖拽的
+            if (dragData.instanceId && dragData.instanceId !== props.instanceId) {
+                // 添加从其他组件拖拽的图片
+                if (dragData.imageData) {
+                    localImages.value = [...localImages.value, dragData.imageData];
+
+                    // 通过自定义事件通知原始组件删除被拖拽的图片
+                    const dragEvent = new CustomEvent('image-drag-received', {
+                        detail: {
+                            sourceInstanceId: dragData.instanceId,
+                            imageIndex: dragData.imageIndex
+                        }
+                    });
+                    window.dispatchEvent(dragEvent);
+                }
+                return;
+            }
+        }
+
+        // 2. 检查是否是从文件系统拖拽的文件
+        if (event.dataTransfer.files && event.dataTransfer.files.length > 0) {
+            handleFileDrop(event.dataTransfer.files);
+            return;
+        }
+
+    } catch (error) {
+        console.error('Error handling drop:', error);
+    }
+};
+
 onMounted(() => {
+    // 监听图片拖拽完成事件，从原始组件中移除已被拖拽的图片
+    const handleImageDragReceived = (event) => {
+        const { sourceInstanceId, imageIndex } = event.detail;
+
+        // 如果当前组件是拖拽的源头，则移除被拖走的图片
+        if (sourceInstanceId === props.instanceId) {
+            const updatedImages = [...localImages.value];
+            updatedImages.splice(imageIndex, 1);
+            localImages.value = updatedImages;
+        }
+    };
+
+    window.addEventListener('image-drag-received', handleImageDragReceived);
+
     // 为textarea添加粘贴事件处理
     if (textareaRef.value) {
         textareaRef.value.$el.addEventListener('paste', (event) => {
@@ -226,6 +336,10 @@ onMounted(() => {
             }
         });
     }
+
+    return () => {
+        window.removeEventListener('image-drag-received', handleImageDragReceived);
+    };
 });
 </script>
 
@@ -239,6 +353,12 @@ onMounted(() => {
     justify-content: center;
     align-items: center;
     position: relative;
+}
+
+.image-paste-area.drag-over {
+    border-color: #1976d2;
+    background-color: rgba(25, 118, 210, 0.05);
+    box-shadow: 0 0 8px rgba(25, 118, 210, 0.3);
 }
 
 .clear-all-btn {
@@ -263,10 +383,14 @@ onMounted(() => {
     display: flex;
     justify-content: center;
     align-items: center;
-    cursor: pointer;
+    cursor: grab;
     position: relative;
     overflow: visible;
     /* 确保图标可以溢出显示 */
+}
+
+.image-preview-item:active {
+    cursor: grabbing;
 }
 
 .image-delete-icon {

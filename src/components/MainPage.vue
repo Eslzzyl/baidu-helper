@@ -5,7 +5,8 @@
       <div class="text-h6 mb-3 text-center">图片文字识别</div>
 
       <ImageTextInput v-model:textInput="userNotes" v-model:images="ocrImages" label="请输入关于图片的备注或提示（可选）"
-        placeholder="在此输入备注信息，帮助模型更好地理解图片内容" :rows="2" @paste-image="handleOcrImagePaste" />
+        placeholder="在此输入备注信息，帮助模型更好地理解图片内容" :rows="2" @paste-image="handleOcrImagePaste" @keydown="handleOcrKeydown"
+        instanceId="ocr-image-input" />
 
       <div class="text-center mt-3">
         <v-btn color="primary" @click="recognizeText" :loading="loadingImage" :disabled="!ocrImages.length">
@@ -37,7 +38,8 @@
       <div class="text-h6 mb-3 text-center">生成解答</div>
 
       <ImageTextInput v-model:textInput="userInput" v-model:images="multipleImages" label="请输入问题或文本内容"
-        placeholder="输入你的问题或粘贴文本内容" :rows="4" @paste-image="handleAnswerImagePaste">
+        placeholder="输入你的问题或粘贴文本内容" :rows="4" @paste-image="handleAnswerImagePaste" @keydown="handleAnswerKeydown"
+        instanceId="answer-image-input">
       </ImageTextInput>
 
       <div class="text-center mt-3">
@@ -233,6 +235,25 @@ const showSnackbar = (text, color = 'error') => {
   snackbarColor.value = color;
   snackbar.value = true;
 };
+
+// 键盘事件处理
+const handleOcrKeydown = (e) => {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    if (ocrImages.value.length && (userNotes.value.trim() || ocrImages.value.length > 0)) {
+      recognizeText();
+    }
+  }
+};
+
+const handleAnswerKeydown = (e) => {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    if (userInput.value.trim() || multipleImages.value.length > 0) {
+      generateAnswer();
+    }
+  }
+};
 </script>
 
 <style scoped>
@@ -241,17 +262,9 @@ const showSnackbar = (text, color = 'error') => {
   word-break: break-word;
 }
 
-.h-100 {
-  height: 100%;
-}
-
 .text-area-result {
   font-family: inherit;
   font-size: inherit;
   line-height: inherit;
-}
-
-.v-textarea.text-area-result>>>textarea {
-  min-height: 200px;
 }
 </style>
