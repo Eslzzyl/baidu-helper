@@ -14,22 +14,20 @@
       </div>
 
       <v-card outlined class="pa-3 mt-3">
-        <div class="d-flex justify-space-between align-center mb-2">
-          <div class="text-subtitle-1 font-weight-bold">识别结果</div>
-          <v-btn icon @click="copyToClipboard(recognizedText)" :disabled="!recognizedText" title="复制到剪贴板">
-            <v-icon>mdi-content-copy</v-icon>
-          </v-btn>
-        </div>
-        <v-divider class="mb-2"></v-divider>
         <v-textarea clearable v-model="recognizedText" placeholder="识别结果将显示在这里" rows="8" auto-grow outlined hide-details
           class="text-area-result"></v-textarea>
-        <div class="text-center mt-2">
-          <v-btn color="primary" @click="syncToAnswer" :disabled="!recognizedText" small class="mr-2">
-            <v-icon left>mdi-sync</v-icon>同步到生成解答
-          </v-btn>
+        <div class="d-flex justify-space-between align-center mt-2">
           <v-btn color="info" @click="formatText('recognizedText')" :disabled="!recognizedText" small>
             <v-icon left>mdi-format-text</v-icon>格式化
           </v-btn>
+          <div>
+            <v-btn color="primary" @click="syncToAnswer" :disabled="!recognizedText" small class="mr-2">
+              <v-icon left>mdi-sync</v-icon>同步到生成解答
+            </v-btn>
+            <v-btn color="primary" @click="copyToClipboard(recognizedText)" :disabled="!recognizedText" title="复制到剪贴板">
+              复制
+            </v-btn>
+          </div>
         </div>
       </v-card>
     </v-col>
@@ -50,18 +48,14 @@
       </div>
 
       <v-card outlined class="pa-3 mt-3">
-        <div class="d-flex justify-space-between align-center mb-2">
-          <div class="text-subtitle-1 font-weight-bold">解答结果</div>
-          <v-btn icon @click="copyToClipboard(generatedAnswer)" :disabled="!generatedAnswer" title="复制到剪贴板">
-            <v-icon>mdi-content-copy</v-icon>
-          </v-btn>
-        </div>
-        <v-divider class="mb-2"></v-divider>
         <v-textarea clearable v-model="generatedAnswer" placeholder="解答结果将显示在这里" rows="8" auto-grow outlined
           hide-details class="text-area-result"></v-textarea>
-        <div class="text-center mt-2">
+        <div class="d-flex justify-space-between align-center mt-2">
           <v-btn color="info" @click="formatText('generatedAnswer')" :disabled="!generatedAnswer" small>
             <v-icon left>mdi-format-text</v-icon>格式化
+          </v-btn>
+          <v-btn color="primary" @click="copyToClipboard(generatedAnswer)" :disabled="!generatedAnswer" title="复制到剪贴板">
+            复制
           </v-btn>
         </div>
       </v-card>
