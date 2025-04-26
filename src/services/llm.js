@@ -70,22 +70,11 @@ class OpenAIService {
         return savedConfig ? JSON.parse(savedConfig) : defaultConfig;
     }
 
-    /**
-     * 通用的聊天完成函数，可处理纯文本、单图片或多图片情况
-     * @param {Object} options - 配置选项
-     * @param {string} options.prompt - 文本提示
-     * @param {string[]} options.imageBase64Array - 图片Base64数组
-     * @param {string} options.userNotes - 用户注释（仅用于单图片模式）
-     * @param {boolean} options.useTextModel - 是否使用文本模型而非视觉模型
-     * @param {boolean} options.stream - 是否使用流式输出
-     * @param {function} options.onStream - 流式输出回调函数
-     * @returns {Promise<string>} - 返回AI回复的内容
-     */
-    async createChatCompletion({ prompt = '', imageBase64Array = [], userNotes = '', useTextModel = false, stream = false, onStream = null }) {
-        // 确定使用哪个客户端和配置
-        const isVisionRequest = imageBase64Array.length > 0;
-        const client = useTextModel ? this.textClient : (isVisionRequest ? this.visionClient : this.textClient);
-        const config = useTextModel ? this.getTextConfig() : (isVisionRequest ? this.getVisionConfig() : this.getTextConfig());
+    async createChatCompletion({ text = '', imageBase64Array = [], mode = 'answer', stream = false, onStream = null }) {
+        // 根据mode决定使用哪个客户端和配置
+        const client = mode === 'ocr' ? this.visionClient : this.textClient;
+        const config = mode === 'ocr' ? this.getVisionConfig() : this.getTextConfig();
+        const hasImages = imageBase64Array.length > 0;
 
         try {
             // 准备消息格式
@@ -96,20 +85,11 @@ class OpenAIService {
                 }
             ];
 
-            // 根据不同场景构建用户消息内容
-            if (isVisionRequest) {
-                // 视觉请求（单图片或多图片）
-                const userContent = [];
+            // 构建单个用户消息，包含所有图片和文本
+            const userContent = [];
 
-                // 添加文本内容（如果有）
-                if ((prompt || userNotes) && (prompt + userNotes).trim()) {
-                    userContent.push({
-                        type: 'text',
-                        text: userNotes || prompt
-                    });
-                }
-
-                // 添加图片
+            // 添加图片内容（如果有）
+            if (hasImages) {
                 for (const imageBase64 of imageBase64Array) {
                     userContent.push({
                         type: 'image_url',
@@ -118,16 +98,21 @@ class OpenAIService {
                         }
                     });
                 }
+            }
 
+            // 添加文本内容（如果有）
+            if (text && text.trim()) {
+                userContent.push({
+                    type: 'text',
+                    text: text
+                });
+            }
+
+            // 只有当有内容时才添加用户消息
+            if (userContent.length > 0) {
                 messages.push({
                     role: 'user',
                     content: userContent
-                });
-            } else {
-                // 纯文本请求
-                messages.push({
-                    role: 'user',
-                    content: prompt
                 });
             }
 

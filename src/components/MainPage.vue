@@ -103,14 +103,14 @@ const recognizeText = async () => {
   recognizedText.value = ''; // 清空之前的结果
 
   try {
-    // 只使用第一张图片进行OCR
-    const base64Image = ocrImages.value[0].base64;
+    const imageBase64Array = ocrImages.value.map(img => img.base64);
 
     try {
-      // 使用流式API
+      // 使用流式API，传入所有图片
       await openAIService.createChatCompletion({
-        prompt: base64Image,
-        userNotes: userNotes.value,
+        text: userNotes.value,
+        imageBase64Array: imageBase64Array,
+        mode: 'ocr',
         stream: true,
         onStream: (chunk, fullText) => {
           recognizedText.value = fullText;
@@ -124,7 +124,7 @@ const recognizeText = async () => {
     }
   } catch (error) {
     loadingImage.value = false;
-    console.error('Error processing image:', error);
+    console.error('Error processing images:', error);
     showSnackbar('处理图片失败: ' + error.message, 'error');
   }
 };
@@ -169,30 +169,17 @@ const generateAnswer = async () => {
 
   try {
     // 使用流式API
-    const imageDataList = multipleImages.value.map(img => img.base64);
+    const imageBase64Array = multipleImages.value.map(img => img.base64);
 
-    if (imageDataList.length === 0) {
-      // 纯文本请求
-      await openAIService.createChatCompletion({
-        prompt: userInput.value,
-        userNotes: userNotes.value,
-        stream: true,
-        onStream: (chunk, fullText) => {
-          generatedAnswer.value = fullText;
-        }
-      });
-    } else {
-      // 带图片的请求
-      await openAIService.createChatCompletion({
-        prompt: userInput.value,
-        userNotes: userNotes.value,
-        images: imageDataList,
-        stream: true,
-        onStream: (chunk, fullText) => {
-          generatedAnswer.value = fullText;
-        }
-      });
-    }
+    await openAIService.createChatCompletion({
+      text: userInput.value,
+      imageBase64Array: imageBase64Array,
+      mode: 'answer',
+      stream: true,
+      onStream: (chunk, fullText) => {
+        generatedAnswer.value = fullText;
+      }
+    });
   } catch (error) {
     console.error('Error generating answer:', error);
     showSnackbar('生成解答失败: ' + error.message, 'error');
