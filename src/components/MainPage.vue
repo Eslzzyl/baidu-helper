@@ -10,8 +10,12 @@
         @image-removed="handleImageRemoved" @images-cleared="handleImagesCleared('ocr')" />
 
       <div class="text-center mt-3">
-        <v-btn color="primary" @click="recognizeText" :loading="loadingImage" :disabled="!ocrImages.length">
+        <v-btn v-if="!loadingImage" color="primary" @click="recognizeText" :disabled="!ocrImages.length">
           识别文字
+        </v-btn>
+        <v-btn v-else color="error" @click="abortOcr">
+          <v-icon left>mdi-cancel</v-icon>
+          中止识别
         </v-btn>
       </div>
 
@@ -44,9 +48,13 @@
         @image-removed="handleImageRemoved" @images-cleared="handleImagesCleared('answer')" />
 
       <div class="text-center mt-3">
-        <v-btn color="primary" @click="generateAnswer" :loading="loadingText"
+        <v-btn v-if="!loadingText" color="primary" @click="generateAnswer"
           :disabled="!userInput && !multipleImages.length">
           生成解答
+        </v-btn>
+        <v-btn v-else color="error" @click="abortAnswer">
+          <v-icon left>mdi-cancel</v-icon>
+          中止生成
         </v-btn>
       </div>
 
@@ -103,6 +111,10 @@ const imageAspectRatios = ref({}); // 新增：存储图片宽高比 { [previewU
 const snackbar = ref(false);
 const snackbarText = ref('');
 const snackbarColor = ref('success');
+
+// Abort Controllers
+let ocrAbortController = null;
+let answerAbortController = null;
 
 // --- 持久化逻辑 ---
 
@@ -200,32 +212,79 @@ const recognizeText = async () => {
   loadingImage.value = true;
   recognizedText.value = ''; // 清空之前的结果
 
+  // 确保创建新的 AbortController 并清除旧的
+  if (ocrAbortController) {
+    try { ocrAbortController.abort(); } catch (e) { console.error(e); }
+  }
+  ocrAbortController = new AbortController();
+
   try {
     const imageBase64Array = ocrImages.value.map(img => img.base64);
 
     try {
-      // 使用流式API，传入所有图片
-      await openAIService.createChatCompletion({
+      // 使用流式API，传入所有图片和 signal
+      const result = await openAIService.createChatCompletion({
         text: userNotes.value,
         imageBase64Array: imageBase64Array,
         mode: 'ocr',
         stream: true,
         onStream: (chunk, fullText) => {
-          recognizedText.value = fullText;
-        }
+          // 只有当处理没有被中止时才更新 UI
+          if (!ocrAbortController.signal.aborted) {
+            recognizedText.value = fullText;
+          }
+        },
+        signal: ocrAbortController.signal
       });
+
+      // 如果结果包含中止标记，确保显示在 UI 上
+      if (result && result.includes('[生成已被用户中止]') && !recognizedText.value.includes('[生成已被用户中止]')) {
+        recognizedText.value = result;
+      }
     } catch (error) {
       console.error('Error recognizing text:', error);
-      showSnackbar('识别失败: ' + error.message, 'error');
+      // 如果不是中止错误，则显示 Snackbar
+      if (error.name !== 'AbortError' && error.message !== '生成已中止') {
+        showSnackbar('识别失败: ' + error.message, 'error');
+      } else {
+        showSnackbar('识别已中止', 'info');
+        // 如果中止了，可能需要保留部分结果，或者清空
+        // recognizedText.value = ''; // 可选：中止时清空结果
+      }
     } finally {
       loadingImage.value = false;
+      ocrAbortController = null; // 清理 Controller
     }
   } catch (error) {
     loadingImage.value = false;
+    ocrAbortController = null; // 清理 Controller
     console.error('Error processing images:', error);
-    showSnackbar('处理图片失败: ' + error.message, 'error');
+    if (error.name !== 'AbortError' && error.message !== '生成已中止') {
+      showSnackbar('处理图片失败: ' + error.message, 'error');
+    }
   }
 };
+
+// 新增：中止 OCR 的方法
+const abortOcr = () => {
+  if (ocrAbortController) {
+    try {
+      ocrAbortController.abort();
+      // 立即更新 UI 状态，让用户知道中止命令已发出
+      loadingImage.value = false;
+
+      // 可以选择在中止时添加提示
+      if (recognizedText.value) {
+        recognizedText.value += '\n\n[识别已被用户中止]';
+      } else {
+        recognizedText.value = '[识别已被用户中止]';
+      }
+    } catch (error) {
+      console.error('Error aborting OCR:', error);
+    }
+  }
+};
+
 
 // 图片粘贴处理方法 (保持不变，宽高比在 ImageTextInput 中计算并通过事件传递)
 const handleOcrImagePaste = (blob) => {
@@ -307,26 +366,67 @@ const generateAnswer = async () => {
   loadingText.value = true;
   generatedAnswer.value = ''; // 清空之前的结果
 
+  // 确保创建新的 AbortController 并清除旧的
+  if (answerAbortController) {
+    try { answerAbortController.abort(); } catch (e) { console.error(e); }
+  }
+  answerAbortController = new AbortController();
+
   try {
-    // 使用流式API
     const imageBase64Array = multipleImages.value.map(img => img.base64);
 
-    await openAIService.createChatCompletion({
+    const result = await openAIService.createChatCompletion({
       text: userInput.value,
       imageBase64Array: imageBase64Array,
       mode: 'answer',
       stream: true,
       onStream: (chunk, fullText) => {
-        generatedAnswer.value = fullText;
-      }
+        // 只有当处理没有被中止时才更新 UI
+        if (!answerAbortController.signal.aborted) {
+          generatedAnswer.value = fullText;
+        }
+      },
+      signal: answerAbortController.signal
     });
+
+    // 如果结果包含中止标记，确保显示在 UI 上
+    if (result && result.includes('[生成已被用户中止]') && !generatedAnswer.value.includes('[生成已被用户中止]')) {
+      generatedAnswer.value = result;
+    }
   } catch (error) {
     console.error('Error generating answer:', error);
-    showSnackbar('生成解答失败: ' + error.message, 'error');
+    // 如果不是中止错误，则显示 Snackbar
+    if (error.name !== 'AbortError' && error.message !== '生成已中止') {
+      showSnackbar('生成解答失败: ' + error.message, 'error');
+    } else {
+      // generatedAnswer.value = ''; // 可选：中止时清空结果
+    }
   } finally {
     loadingText.value = false;
+    answerAbortController = null; // 清理 Controller
   }
 };
+
+// 新增：中止解答生成的方法
+const abortAnswer = () => {
+  if (answerAbortController) {
+    try {
+      answerAbortController.abort();
+      // 立即更新 UI 状态，让用户知道中止命令已发出
+      loadingText.value = false;
+
+      // 可以选择在中止时添加提示
+      if (generatedAnswer.value) {
+        generatedAnswer.value += '\n\n[生成已被用户中止]';
+      } else {
+        generatedAnswer.value = '[生成已被用户中止]';
+      }
+    } catch (error) {
+      console.error('Error aborting answer generation:', error);
+    }
+  }
+};
+
 
 // 同步识别结果到解答输入
 const syncToAnswer = () => {

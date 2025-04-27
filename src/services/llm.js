@@ -91,7 +91,7 @@ class OpenAIService {
         return savedConfig ? JSON.parse(savedConfig) : defaultConfig;
     }
 
-    async createChatCompletion({ text = '', imageBase64Array = [], mode = 'answer', stream = false, onStream = null }) {
+    async createChatCompletion({ text = '', imageBase64Array = [], mode = 'answer', stream = false, onStream = null, signal = null }) {
         // 根据mode决定使用哪个客户端和配置
         const client = mode === 'ocr' ? this.visionClient : this.textClient;
         const config = mode === 'ocr' ? this.getVisionConfig() : this.getTextConfig();
@@ -142,31 +142,78 @@ class OpenAIService {
                 model: config.model,
                 temperature: parseFloat(config.temperature),
                 messages: messages,
-                stream: stream
+                stream: stream,
+                signal: signal // 传递 signal
             };
 
             // 如果是流式输出
             if (stream && onStream) {
                 let fullResponse = '';
-                const stream = await client.chat.completions.create({
-                    ...requestOptions,
-                    stream: true,
-                });
+                let streamController = null;
 
-                for await (const chunk of stream) {
-                    const content = chunk.choices[0]?.delta?.content || '';
-                    if (content) {
-                        fullResponse += content;
-                        onStream(content, fullResponse);
+                try {
+                    // 创建流
+                    streamController = await client.chat.completions.create({
+                        ...requestOptions,
+                        stream: true,
+                    });
+
+                    // 监听中止信号
+                    if (signal) {
+                        signal.addEventListener('abort', () => {
+                            // 确保流被正确关闭
+                            if (streamController && typeof streamController.controller?.abort === 'function') {
+                                streamController.controller.abort();
+                            }
+                        }, { once: true });
+                    }
+
+                    // 处理流数据
+                    for await (const chunk of streamController) {
+                        // 检查是否已中止
+                        if (signal && signal.aborted) {
+                            console.log('Stream processing aborted during iteration');
+                            throw new DOMException('Aborted', 'AbortError');
+                        }
+
+                        const content = chunk.choices[0]?.delta?.content || '';
+                        if (content) {
+                            fullResponse += content;
+                            onStream(content, fullResponse);
+                        }
+                    }
+                } catch (error) {
+                    // 捕获中止错误
+                    if (error.name === 'AbortError') {
+                        console.log('Stream aborted by user.', error);
+                        // 返回部分结果并添加中止标记
+                        return fullResponse ? fullResponse + '\n\n[生成已被用户中止]' : '[生成已被用户中止]';
+                    }
+                    // 重新抛出其他错误
+                    throw error;
+                } finally {
+                    // 确保流被正确关闭
+                    if (streamController && typeof streamController.controller?.abort === 'function') {
+                        try {
+                            streamController.controller.abort();
+                        } catch (error) {
+                            console.log('Error while closing stream:', error);
+                        }
                     }
                 }
 
                 return fullResponse;
             } else {
+                // 非流式请求
                 const response = await client.chat.completions.create(requestOptions);
                 return response.choices[0].message.content;
             }
         } catch (error) {
+            // 捕获非流式请求的中止错误
+            if (error.name === 'AbortError') {
+                console.log('Request aborted by user.');
+                throw new Error('生成已中止');
+            }
             console.error('Error in chat completion:', error);
             throw error;
         }
