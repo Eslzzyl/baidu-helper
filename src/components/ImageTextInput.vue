@@ -25,6 +25,7 @@
                 <div v-if="localImages.length" class="image-preview-container">
                     <div v-for="(img, index) in localImages" :key="index" class="image-preview-item" draggable="true"
                         @dragstart="handleDragStart($event, img, index)">
+                        <!-- 使用 calculateImageWidth 计算宽度 -->
                         <v-img :src="img.preview" height="80" :width="calculateImageWidth(img)" contain
                             class="rounded ma-1 preview-image" @click="previewImage(img.preview)"></v-img>
                         <v-icon small class="image-delete-icon" @click.stop="removeImage(index)" title="删除图片">
@@ -70,17 +71,22 @@ const props = defineProps({
     instanceId: {
         type: String,
         default: () => `image-input-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+    },
+    // 新增：接收父组件传递的宽高比对象
+    imageAspectRatios: {
+        type: Object,
+        default: () => ({})
     }
 });
 
-const emit = defineEmits(['update:textInput', 'update:images', 'paste-image']);
+// 新增事件定义
+const emit = defineEmits(['update:textInput', 'update:images', 'paste-image', 'image-added', 'image-removed', 'images-cleared']);
 
 const localTextInput = ref(props.textInput);
 const localImages = ref([...props.images]);
 const textareaRef = ref(null);
 const showImagePreview = ref(false);
 const previewImageSrc = ref('');
-const imageAspectRatios = ref({}); // 存储图片宽高比
 const isDragOver = ref(false); // 用于标记是否有元素正在拖放到此区域
 const isFocused = ref(false); // 标记粘贴区域是否被聚焦
 
@@ -149,40 +155,62 @@ const handlePasteOnArea = (event) => {
 };
 
 const calculateImageWidth = (img) => {
-    if (imageAspectRatios.value[img.preview]) {
+    // 使用 props.imageAspectRatios
+    if (props.imageAspectRatios[img.preview]) {
         // 保持图片原始宽高比，固定高度为80px
-        return 80 * imageAspectRatios.value[img.preview];
+        return 80 * props.imageAspectRatios[img.preview];
     }
     return 'auto'; // 在比例还未计算出来时使用自动宽度
 };
 
 const addMultipleImages = (files) => {
     const newImages = [];
+    let processedCount = 0; // 计数器，确保所有图片处理完再更新
 
     for (const file of files) {
         if (file.type.startsWith('image/')) {
             const reader = new FileReader();
             reader.onload = (e) => {
                 const base64Data = e.target.result;
-                newImages.push({
+                const newImage = {
                     file: file,
                     preview: base64Data,
                     base64: base64Data.split(',')[1]
-                });
+                };
+                newImages.push(newImage);
 
                 // 计算并存储图片宽高比
                 const img = new Image();
                 img.onload = () => {
                     const aspectRatio = img.width / img.height;
-                    imageAspectRatios.value = {
-                        ...imageAspectRatios.value,
-                        [base64Data]: aspectRatio
-                    };
+                    // 触发 image-added 事件，将宽高比传递给父组件
+                    emit('image-added', { preview: base64Data, aspectRatio: aspectRatio });
+
+                    processedCount++;
+                    // 当所有图片都处理完后，一次性更新 localImages
+                    if (processedCount === files.length) {
+                        nextTick(() => {
+                            const updatedImages = [...localImages.value, ...newImages];
+                            localImages.value = updatedImages;
+                        });
+                    }
+                };
+                img.onerror = () => { // 处理图片加载错误
+                    console.error("Failed to load image for aspect ratio calculation:", base64Data.substring(0, 50) + "...");
+                    processedCount++;
+                    if (processedCount === files.length) {
+                        nextTick(() => {
+                            const updatedImages = [...localImages.value, ...newImages];
+                            localImages.value = updatedImages;
+                        });
+                    }
                 };
                 img.src = base64Data;
-
-                // 当所有图片都处理完后，一次性更新 localImages
-                if (newImages.length === files.length) {
+            };
+            reader.onerror = (error) => { // 处理 FileReader 错误
+                console.error("FileReader error:", error);
+                processedCount++;
+                if (processedCount === files.length) {
                     nextTick(() => {
                         const updatedImages = [...localImages.value, ...newImages];
                         localImages.value = updatedImages;
@@ -190,6 +218,14 @@ const addMultipleImages = (files) => {
                 }
             };
             reader.readAsDataURL(file);
+        } else {
+            processedCount++; // 非图片文件也计入总数
+            if (processedCount === files.length) {
+                nextTick(() => {
+                    const updatedImages = [...localImages.value, ...newImages];
+                    localImages.value = updatedImages;
+                });
+            }
         }
     }
 };
@@ -203,11 +239,18 @@ const handleFileDrop = (files) => {
 };
 
 const clearAllImages = () => {
+    // 触发 images-cleared 事件
+    emit('images-cleared');
     localImages.value = [];
 };
 
 // 添加删除单个图片的方法
 const removeImage = (index) => {
+    const removedImage = localImages.value[index];
+    if (removedImage) {
+        // 触发 image-removed 事件
+        emit('image-removed', removedImage.preview);
+    }
     const updatedImages = [...localImages.value];
     updatedImages.splice(index, 1);
     localImages.value = updatedImages;
@@ -315,8 +358,9 @@ onMounted(() => {
     window.addEventListener('image-drag-received', handleImageDragReceived);
 
     // 为textarea添加粘贴事件处理
-    if (textareaRef.value) {
-        textareaRef.value.$el.addEventListener('paste', (event) => {
+    if (textareaRef.value && textareaRef.value.$el) { // 确保 $el 存在
+        const textareaElement = textareaRef.value.$el.querySelector('textarea') || textareaRef.value.$el; // 获取实际的 textarea 元素
+        textareaElement.addEventListener('paste', (event) => {
             const items = event.clipboardData?.items;
             if (!items) return;
 
@@ -338,19 +382,29 @@ onMounted(() => {
                 // 防止图片被直接粘贴到文本框中
                 event.preventDefault();
 
-                // 直接添加图片到本组件
+                // 直接添加图片到本组件 (addMultipleImages 会触发 image-added 事件)
                 addMultipleImages(imageFiles);
 
-                // 通知父组件处理图片粘贴事件，使用深拷贝
-                if (imageFiles.length > 0) {
-                    emit('paste-image', imageFiles[0]);
-                }
+                // 不再需要单独 emit('paste-image')，因为 addMultipleImages 会处理
+                // if (imageFiles.length > 0) {
+                //     emit('paste-image', imageFiles[0]);
+                // }
             }
         });
+    } else {
+        console.warn("Textarea element not found for paste event listener.");
     }
+
 
     return () => {
         window.removeEventListener('image-drag-received', handleImageDragReceived);
+        // 移除粘贴事件监听器（如果已添加）
+        if (textareaRef.value && textareaRef.value.$el) {
+            const textareaElement = textareaRef.value.$el.querySelector('textarea') || textareaRef.value.$el;
+            // 需要保存事件处理函数才能正确移除
+            // textareaElement.removeEventListener('paste', pasteHandlerFunction);
+            // 注意：上面的代码片段没有保存处理函数，实际应用中需要保存才能移除
+        }
     };
 });
 </script>

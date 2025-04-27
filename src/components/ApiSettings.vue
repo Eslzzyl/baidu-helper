@@ -13,7 +13,11 @@
         <v-text-field v-model="visionConfig.model" label="模型名称" outlined dense
           placeholder="gpt-4-vision-preview"></v-text-field>
 
-        <v-slider v-model="visionConfig.temperature" label="温度" min="0" max="2" step="0.1" thumb-label ticks></v-slider>
+        <v-slider v-model="visionConfig.temperature" label="温度" min="0" max="2" step="0.1" thumb-label ticks>
+          <template v-slot:append>
+            <span class="ml-2">{{ visionConfig.temperature.toFixed(1) }}</span>
+          </template>
+        </v-slider>
 
         <v-btn color="primary" block class="mt-4" @click="saveVisionConfig">
           保存视觉模型设置
@@ -33,7 +37,11 @@
 
         <v-text-field v-model="textConfig.model" label="模型名称" outlined dense placeholder="gpt-3.5-turbo"></v-text-field>
 
-        <v-slider v-model="textConfig.temperature" label="温度" min="0" max="2" step="0.1" thumb-label ticks></v-slider>
+        <v-slider v-model="textConfig.temperature" label="温度" min="0" max="2" step="0.1" thumb-label ticks>
+          <template v-slot:append>
+            <span class="ml-2">{{ textConfig.temperature.toFixed(1) }}</span>
+          </template>
+        </v-slider>
 
         <v-btn color="primary" block class="mt-4" @click="saveTextConfig">
           保存文本模型设置
