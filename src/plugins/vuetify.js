@@ -17,5 +17,19 @@ export default createVuetify({
   blueprint: md3,
   theme: {
     defaultTheme: 'light',
+    themes: {
+      light: {
+        colors: {
+          primary: '#288dff',
+          secondary: '#71c9ff',
+        },
+      },
+      dark: {
+        colors: {
+          primary: '#15588d',
+          secondary: '#5a93be',
+        },
+      },
+    },
   },
 })
