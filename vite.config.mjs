@@ -46,6 +46,15 @@ export default defineConfig({
   },
   server: {
     port: 3000,
+    proxy: {
+      // 将 /api 请求代理到目标服务器
+      '/api': {
+        target: 'https://api.eslzzyl.eu.org', // 目标 API 服务器
+        changeOrigin: true, // 需要改变源
+        rewrite: (path) => path.replace(/^\/api/, ''), // 重写路径，去掉 /api 前缀
+        secure: true, // 如果目标是 https，可能需要设置
+      }
+    }
   },
   css: {
     preprocessorOptions: {
@@ -53,7 +62,7 @@ export default defineConfig({
         api: 'modern-compiler',
       },
       scss: {
-        api:'modern-compiler',
+        api: 'modern-compiler',
       },
     },
   },

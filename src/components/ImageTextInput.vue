@@ -44,7 +44,7 @@
 </template>
 
 <script setup>
-import { ref, watch, defineProps, defineEmits, onMounted, nextTick } from 'vue';
+import { ref, watch, onMounted, nextTick } from 'vue';
 
 const props = defineProps({
     textInput: {
