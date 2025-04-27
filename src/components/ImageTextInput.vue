@@ -11,8 +11,9 @@
             </div>
 
             <v-card outlined class="image-paste-area pa-3 mb-2 text-center position-relative"
-                :class="{ 'drag-over': isDragOver }" @paste.stop="handlePasteOnArea" @dragover.prevent="handleDragOver"
-                @dragleave.prevent="handleDragLeave" @drop.prevent="handleDrop">
+                :class="{ 'drag-over': isDragOver, 'is-focused': isFocused }" @paste.stop="handlePasteOnArea"
+                @dragover.prevent="handleDragOver" @dragleave.prevent="handleDragLeave" @drop.prevent="handleDrop"
+                @focus="handleFocus" @blur="handleBlur" tabindex="0">
                 <v-icon small class="clear-all-btn" @click.stop="clearAllImages" :disabled="!localImages.length"
                     title="清除所有图片" v-if="localImages.length">
                     mdi-close-circle
@@ -36,7 +37,7 @@
 
         <!-- 图片预览对话框 -->
         <v-dialog v-model="showImagePreview" max-width="90vw">
-            <v-img :src="previewImageSrc" max-height="90vh" contain></v-img>
+            <v-img :src="previewImageSrc" max-height="90vh" contain @click="closeImagePreview"></v-img>
         </v-dialog>
     </div>
 </template>
@@ -81,6 +82,7 @@ const showImagePreview = ref(false);
 const previewImageSrc = ref('');
 const imageAspectRatios = ref({}); // 存储图片宽高比
 const isDragOver = ref(false); // 用于标记是否有元素正在拖放到此区域
+const isFocused = ref(false); // 标记粘贴区域是否被聚焦
 
 // 拖放操作相关数据
 const draggedImageIndex = ref(null);
@@ -96,12 +98,10 @@ watch(() => props.images, (newVal) => {
     localImages.value = [...newVal];
 });
 
-// 监听本地状态变化，更新外部值
 watch(localTextInput, (newVal) => {
     emit('update:textInput', newVal);
 });
 
-// 修改这个 watch 函数，使用防递归标记
 let isUpdatingImages = false;
 watch(localImages, (newVal) => {
     if (!isUpdatingImages) {
@@ -113,9 +113,18 @@ watch(localImages, (newVal) => {
     }
 }, { deep: true });
 
-// 方法
 const updateText = () => {
     emit('update:textInput', localTextInput.value);
+};
+
+// 处理粘贴区域的聚焦事件
+const handleFocus = () => {
+    isFocused.value = true;
+};
+
+// 处理粘贴区域的失焦事件
+const handleBlur = () => {
+    isFocused.value = false;
 };
 
 const handlePasteOnArea = (event) => {
@@ -139,7 +148,6 @@ const handlePasteOnArea = (event) => {
     }
 };
 
-// 添加计算图片宽度的方法
 const calculateImageWidth = (img) => {
     if (imageAspectRatios.value[img.preview]) {
         // 保持图片原始宽高比，固定高度为80px
@@ -148,7 +156,6 @@ const calculateImageWidth = (img) => {
     return 'auto'; // 在比例还未计算出来时使用自动宽度
 };
 
-// 修改图片添加方法，增加宽高比计算
 const addMultipleImages = (files) => {
     const newImages = [];
 
@@ -210,6 +217,11 @@ const removeImage = (index) => {
 const previewImage = (imageSrc) => {
     previewImageSrc.value = imageSrc;
     showImagePreview.value = true;
+};
+
+// 关闭图片预览
+const closeImagePreview = () => {
+    showImagePreview.value = false;
 };
 
 // 拖放相关方法
@@ -353,12 +365,22 @@ onMounted(() => {
     justify-content: center;
     align-items: center;
     position: relative;
+    outline: none;
+    /* 移除默认的焦点样式 */
 }
 
 .image-paste-area.drag-over {
     border-color: #1976d2;
     background-color: rgba(25, 118, 210, 0.05);
     box-shadow: 0 0 8px rgba(25, 118, 210, 0.3);
+}
+
+/* 新增: 聚焦时的样式 */
+.image-paste-area.is-focused {
+    border-color: #1976d2;
+    border-style: solid;
+    box-shadow: 0 0 6px rgba(25, 118, 210, 0.4);
+    background-color: rgba(25, 118, 210, 0.02);
 }
 
 .clear-all-btn {
@@ -425,5 +447,14 @@ onMounted(() => {
 
 .position-relative {
     position: relative;
+}
+
+.close-preview-btn {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background-color: rgba(0, 0, 0, 0.5);
+    color: white;
+    z-index: 10;
 }
 </style>
