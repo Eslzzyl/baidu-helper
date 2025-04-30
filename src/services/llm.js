@@ -21,6 +21,13 @@ const textModelSystemPrompt = `你是一位语文老师。根据用户提供给�
 给出答案后，使用一段话来解析你给出的答案，通常在开头介绍本题考查什么知识点，然后根据题目解析答案，解析需要具备一定的篇幅。不要使用markdown语法，不要通过数字分点，逻辑上的分点可通过换行来表示。在解析的最后加上答案总结，例如“故本题答案为……”等。
 重要：输出的所有标点符号都应当使用中文标点符号，不要使用英文标点符号。`;
 
+// Helper function to remove <think>...</think> tags and their content
+const filterThinkTags = (text) => {
+    if (!text) return '';
+    // Use a non-greedy match to handle multiple tags
+    return text.replace(/<think>.*?<\/think>/gs, '').trim();
+};
+
 class OpenAIService {
     constructor() {
         this.textClient = null;
@@ -148,7 +155,8 @@ class OpenAIService {
 
             // 如果是流式输出
             if (stream && onStream) {
-                let fullResponse = '';
+                let rawFullResponse = ''; // Store the raw response including tags
+                let lastSentFilteredResponse = ''; // Store the last filtered response sent to onStream
                 let streamController = null;
 
                 try {
@@ -176,10 +184,31 @@ class OpenAIService {
                             throw new DOMException('Aborted', 'AbortError');
                         }
 
-                        const content = chunk.choices[0]?.delta?.content || '';
-                        if (content) {
-                            fullResponse += content;
-                            onStream(content, fullResponse);
+                        const deltaContent = chunk.choices[0]?.delta?.content || '';
+                        if (deltaContent) {
+                            rawFullResponse += deltaContent;
+                            const currentFilteredResponse = filterThinkTags(rawFullResponse);
+
+                            // Calculate the actual chunk to send (the difference)
+                            let chunkToSend = '';
+                            if (currentFilteredResponse.length > lastSentFilteredResponse.length && currentFilteredResponse.startsWith(lastSentFilteredResponse)) {
+                                chunkToSend = currentFilteredResponse.substring(lastSentFilteredResponse.length);
+                            } else if (currentFilteredResponse !== lastSentFilteredResponse) {
+                                // If something unexpected happened (e.g., filter removed content from the middle),
+                                // send the whole current filtered response to resync.
+                                // Or just send the new part if it's purely additive after filtering.
+                                // For simplicity, we recalculate the diff based on raw addition if possible,
+                                // otherwise send the whole filtered text.
+                                // A safer approach might be needed if filters drastically change structure.
+                                // Let's stick to sending the diff if possible.
+                                // If the start no longer matches, send the whole current state.
+                                chunkToSend = currentFilteredResponse; // Fallback: send the whole current state
+                            }
+
+                            if (chunkToSend) {
+                                onStream(chunkToSend, currentFilteredResponse);
+                            }
+                            lastSentFilteredResponse = currentFilteredResponse;
                         }
                     }
                 } catch (error) {
@@ -187,7 +216,7 @@ class OpenAIService {
                     if (error.name === 'AbortError') {
                         console.log('Stream aborted by user.', error);
                         // 返回部分结果并添加中止标记
-                        return fullResponse ? fullResponse + '\n\n[生成已被用户中止]' : '[生成已被用户中止]';
+                        return lastSentFilteredResponse ? lastSentFilteredResponse + '\n\n[生成已被用户中止]' : '[生成已被用户中止]';
                     }
                     // 重新抛出其他错误
                     throw error;
@@ -202,16 +231,20 @@ class OpenAIService {
                     }
                 }
 
-                return fullResponse;
+                // Return the final filtered response after the stream ends
+                return lastSentFilteredResponse;
             } else {
                 // 非流式请求
                 const response = await client.chat.completions.create(requestOptions);
-                return response.choices[0].message.content;
+                const rawResponseContent = response.choices[0].message.content;
+                // Filter the final response before returning
+                return filterThinkTags(rawResponseContent);
             }
         } catch (error) {
             // 捕获非流式请求的中止错误
             if (error.name === 'AbortError') {
                 console.log('Request aborted by user.');
+                // For non-streamed aborts, we don't have partial content to filter.
                 throw new Error('生成已中止');
             }
             console.error('Error in chat completion:', error);
